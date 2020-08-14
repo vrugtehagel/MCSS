@@ -1,5 +1,27 @@
-const MCSS = function(mcss, options = {}){
-	const indent = options.indentation || '\t';
+const fs = require('fs');
+fs.readFile('design.mcss', 'utf-8', (error, data) => {
+	if(error) throw error;
+	console.log(MCSS(data));
+});
+
+Array.prototype.fixedForEach = function(callback){
+	for(let i = this.length - 1; i >= 0; --i){
+		const index = this.length - 1 - i;
+		callback(this[index], index, this);
+	}
+};
+
+const MCSS = data => {
+	const indent = (() => {
+		const gcd = (a, b) => b ? gcd(b, a % b) : a;
+		const indentArray = data.split('\n')
+			.map(line => (line.match(/^\s+/) || [])[0])
+			.filter(indent => indent);
+		if(!indentArray.length) return '\t';
+		const indentLength = indentArray.map(indent => indent.length)
+			.reduce(gcd);
+		return indentArray[0].slice(0, indentLength)
+	})();
 	// strip comments
 	(() => {
 		let inString = false;
@@ -8,9 +30,15 @@ const MCSS = function(mcss, options = {}){
 		let escaped = false;
 		let prev = '';
 		let result = '';
-		for(const c of mcss){
-			if(inString) escaped = escaped ? false : c == '\\' ? true : escaped;
-			else if(c == '\'' || c == '"') inString = true;
+		for(const c of data){
+			if(inString){
+				if(escaped) escaped = false;
+				else{
+					if(c == '\\') escaped = true;
+					if(inString == c) inString = false;
+				}
+			}
+			else if(c == '\'' || c == '"') inString = c;
 			else if(inComment){
 				if(traditionalComment){
 					if(prev == '*' && c == '/') inComment = false;
@@ -33,433 +61,377 @@ const MCSS = function(mcss, options = {}){
 			result += c;
 			prev = c;
 		}
-		mcss = result;
+		data = result;
 	})();
-	const read = (text, depth = -1) => {
-		if(/^\s\n/.test(text)) return read(text.slice(1));
-		if(depth == -1 && text[0] == '\n') return read(text, 0);
-		if(depth >= 0 && text.indexOf(indent) == 0) return read(text.slice(indent.length), depth + 1);
-		if(/\s/.test(text[0])) return read(text.slice(1), depth);
-		if(!text.includes(';')) return { left: '', type: 'garbage' };
-		let atRule = text[0] == '@';
-		let inParentheses = false;
+	const findSemiColon = () => {
 		let inString = false;
 		let escaped = false;
-		let colon = -1;
 		let index = 0;
-		if(atRule && text.slice(0, 10) == '@keyframes'){
-			const match = text.match(/@keyframes\s+\S+/)[0];
-			return {
-				type: 'atrule',
-				text: match,
-				left: text.slice(match.length),
-				depth,
+		for(const c of data){
+			if(inString){
+				if(escaped) escaped = false;
+				else{
+					if(c == '\\') escaped = true;
+					if(inString == c) inString = false;
+				}
 			}
-		}
-		for(const c of text){
-			if(inString) escaped = escaped ? false : c == '\\' ? true : escaped;
-			else if(c == '\'' || c == '"') inString = true;
-			else if(inParentheses) inParentheses = c != ')';
-			else if(c == '(') inParentheses = true;
-			else if(c == ':') colon = index;
+			else if(c == '\'' || c == '"') inString = c;
 			else if(c == ';') break;
 			index++;
 		}
-		for(let i = colon; i >= 0; --i){
-			if(/\s/.test(text[i]) && /\S/.test(text[i-1])){
-				const selector = text.slice(0, i);
-				if(selector.match('\n' + indent.repeat(depth + 1))){
-					return {
-						type: atRule ? 'atrule' : 'selector',
-						text: text.slice(0, text.indexOf('\n'  + indent.repeat(depth + 1))).trim(),
-						left: text.slice(text.indexOf('\n'  + indent.repeat(depth + 1))),
-						depth
-					};
-				}
-				else {
-					return {
-						type: atRule ? 'atrule' : 'selector',
-						text: text.slice(0, i),
-						left: text.slice(i),
-						depth
-					};
+		return { text: ';', index };
+	};
+	const findMatchingColon = semicolon => {
+		let inString = false;
+		let parentheses = 0;
+		let escaped = false;
+		let index = semicolon.index - 1;
+		while(index >= 0){
+			const c = data[index];
+			if(inString){
+				if(escaped) escaped = false;
+				else{
+					if(c == '\\') escaped = true;
+					if(inString == c) inString = false;
 				}
 			}
+			else if(c == '\'' || c == '"') inString = c;
+			else if(c == ')') parentheses++;
+			else if(c == '(') parentheses--;
+			else if(parentheses) 0;
+			else if(c == ':') break;
+			index--;
 		}
+		return { text: ':', index };
+	};
+	const findMatchingProperty = colon => {
+		const index = data.slice(0, colon.index).search(/[\w-]+\s*$/);
+		return { text: data.slice(index, colon.index).trim(), index };
+	};
+	const findMatchingValue = (colon, semicolon) => {
+		const text = data.slice(colon.index + 1, semicolon.index).trim();
+		const index = data.slice(colon.index + 1).indexOf(text) + colon.index;
+		return { text, index };
+	};
+	const findLine = character => {
+		const startIndex = data.slice(0, character.index).lastIndexOf('\n') + 1;
+		let endIndex = data.slice(character.index).indexOf('\n');
+		if(endIndex == -1) endIndex == data.length;
 		return {
-			type: 'declaration',
-			text: text.slice(0, text.indexOf(';') + 1),
-			left: text.slice(text.indexOf(';') + 1),
-			depth
+			text: data.slice(startIndex, character.index + endIndex),
+			index: startIndex
 		};
 	};
-	let chunks = [];
-	for(let text = '\n' + mcss; text.trim().length;){
-		const {left, ...rest} = read(text);
-		text = left;
-		if(rest.type != 'garbage') chunks.push(rest);
-	}
-	// fix indentation (where depth == -1)
-	(() => {
-		let previousChunk;
-		for(const chunk of chunks){
-			if(chunk.depth == -1){
-				if(!previousChunk) chunk.depth = 0;
-				else if(previousChunk.type == 'declaration') chunk.depth = previousChunk.depth;
-				else chunk.depth = previousChunk.depth + 1;
-			}
-			previousChunk = chunk;
+	const findPropertyDepth = property => {
+		if(!/\n\s$/.test(data.slice(0, property.index))) return -1;
+		return data.slice(0, property.index)
+			.match(/[^\S\n]*$/)[0]
+			.split(indent).length - 1;
+	};
+	const findDepth = text => {
+		let depth = 0;
+		while(text.indexOf(indent) == 0){
+			text = text.replace(indent, '');
+			depth++;
 		}
-	})();
-
-	class MCSSFile {
-		constructor(data = []){
-			this.data = data;
-		}
-		add(chunk){
-			const declaration = new Declaration(chunk);
-			this.data.push(declaration);
-			declaration.parent = this;
-		}
-		replace(chunk, newChunks){
-			const index = this.data.indexOf(chunk);
-			if(index == -1) return;
-			this.data.splice(i, 1, ...newChunks);
-		}
-		apply(func){
-			const parsed = [];
-			for(const chunk of this.data){
-				const result = chunk[func]();
-				if(result) parsed.push(...result);
-				else parsed.push(chunk);
-			}
-			this.data = parsed;
-			this.data.forEach(chunk => chunk.parent = this);
-		}
-	}
-
-	class Declaration {
-		constructor({text, property, value, selectorTree, atRules}){
-			if(text){
-				const colonIndex = text.indexOf(':');
-				this.property = text.slice(0, colonIndex);
-				this.value = text.slice(colonIndex + 1, -1).trim();
+		return depth;
+	};
+	// ------------------------------------------------------
+	const chunkify = () => {
+		let chunks = [];
+		let buildingSelector = false;
+		let tree = [];
+		while(data){
+			if(!data.includes(';')) break;
+			const semicolon = findSemiColon();
+			const colon = findMatchingColon(semicolon);
+			const property = findMatchingProperty(colon);
+			const value = findMatchingValue(colon, semicolon);
+			const depth = findPropertyDepth(property);
+			if(/^\s*$/.test(data.slice(0, property.index))){
+				// declaration
+				buildingSelector = false;
+				data = data.slice(semicolon.index + 1);
+				if(depth != -1) while(tree.length > depth) tree.pop();
+				chunks.push({
+					property: property.text,
+					value: value.text,
+					depth: depth == -1 ? tree.length : depth,
+					tree: [...tree]
+				});
 			}
 			else {
-				this.property = property;
-				this.value = value;
+				// selector / atrule
+				if(data[0] == '\n'){
+					data = data.slice(1);
+					continue;
+				}
+				const lineDepth = findDepth(data);
+				const newLineIndex = data.indexOf('\n');
+				const selectorEnd = newLineIndex == -1 || property.index < newLineIndex
+					? property.index - 1
+					: newLineIndex;
+				const selector = data.slice(0, selectorEnd).trim();
+				if(lineDepth == tree.length) tree.push(selector);
+				else if(lineDepth < tree.length - 1) tree = tree.slice(0, lineDepth).concat(selector);
+				else if(buildingSelector) tree[lineDepth] += '\n' + selector;
+				else tree[lineDepth] = selector;
+				data = data.slice(selectorEnd);
+				buildingSelector = true;
 			}
-			this.selectorTree = selectorTree.length ? selectorTree : [':root'];
-			this.atRules = atRules;
 		}
-		readShorthand(){
-			const parsed = [];
-			const add = ({ property, value }) => {
-				if(!value) return;
-				if(value.includes('.') && !/\.\d/.test(value)) return;
-				parsed.push(new Declaration({
-					property,
-					value,
-					selectorTree: [...this.selectorTree],
-					atRules: [...this.atRules]
-				}));
-			};
-			if(this.property == 'model'){
-				const parts = this.value.split('|').map(part => part.trim());
-				if(!parts[0].includes(' ')){
-					// display
-					add({ property: 'display', value: parts[0] });
-					parts.shift();
+		chunks.forEach(chunk => {
+			chunk.atRules = chunk.tree.filter(leaf => leaf[0] == '@');
+			chunk.tree = chunk.tree.filter(leaf => leaf[0] != '@');
+		});
+		return chunks;
+	};
+	const getAtRules = value => {
+		let inString = false;
+		let escaped = false;
+		let index = 0;
+		for(const c of value){
+			if(inString){
+				if(escaped) escaped = false;
+				else{
+					if(c == '\\') escaped = true;
+					if(inString == c) inString = false;
 				}
-				// width, height
-				const [width, height] = parts.shift().split(/\s+/);
-				add({ property: 'width', value: width });
-				add({ property: 'height', value: height });
-				// padding
-				const padding = parts.shift();
-				if(!padding) return parsed;
-				if(/\.\D|\.$/.test(padding)){
-					// seperate values
-					const bits = padding.split(/\s+/);
-					if(bits.length == 2){
-						add({ property: 'padding-top', value: bits[0] });
-						add({ property: 'padding-right', value: bits[1] });
-						add({ property: 'padding-bottom', value: bits[0] });
-						add({ property: 'padding-left', value: bits[1] });
-					}
-					if(bits.length == 3){
-						add({ property: 'padding-top', value: bits[0] });
-						add({ property: 'padding-right', value: bits[1] });
-						add({ property: 'padding-bottom', value: bits[2] });
-						add({ property: 'padding-left', value: bits[1] });
-					}
-					if(bits.length == 4){
-						add({ property: 'padding-top', value: bits[0] });
-						add({ property: 'padding-right', value: bits[1] });
-						add({ property: 'padding-bottom', value: bits[2] });
-						add({ property: 'padding-left', value: bits[3] });
-					}
-				}
-				else {
-					add({ property: 'padding', value: padding});
-				}
-				const margin = parts.shift();
-				if(!margin) return parsed;
-				if(/\.\D|\.$/.test(margin)){
-					// seperate values
-					const bits = margin.split(/\s+/);
-					if(bits.length == 2){
-						add({ property: 'margin-top', value: bits[0] });
-						add({ property: 'margin-right', value: bits[1] });
-						add({ property: 'margin-bottom', value: bits[0] });
-						add({ property: 'margin-left', value: bits[1] });
-					}
-					if(bits.length == 3){
-						add({ property: 'margin-top', value: bits[0] });
-						add({ property: 'margin-right', value: bits[1] });
-						add({ property: 'margin-bottom', value: bits[2] });
-						add({ property: 'margin-left', value: bits[1] });
-					}
-					if(bits.length == 4){
-						add({ property: 'margin-top', value: bits[0] });
-						add({ property: 'margin-right', value: bits[1] });
-						add({ property: 'margin-bottom', value: bits[2] });
-						add({ property: 'margin-left', value: bits[3] });
-					}
-				}
-				else {
-					add({ property: 'margin', value: margin});
-				}
-				const boxSizing = parts.shift();
-				if(!boxSizing) return parsed;
-				add({ property: 'box-sizing', value: boxSizing});
-				return parsed;
 			}
-			else if(this.property.slice(0, 5) == 'place'){
-				const parts = this.value.split('|').map(part => part.trim());
-				if(!parts[0].includes(' ')){
-					add({ property: 'position', value: parts[0] });
-					parts.shift();
-				}
-				else {
-					add({ property: 'position', value: 'absolute' });
-				}
-				const vertical = this.property == 'place'
-					? parts[0]
-					: this.property == 'place-vertical'
-						? this.value
-						: '';
-				const horizontal = this.property == 'place'
-					? parts[1]
-					: this.property == 'place-horizontal'
-						? this.value
-						: '';
-				if(vertical){
-					let child = '0';
-					let dist = '0';
-					let parent;
-					let whitespaces = (vertical.match(/\s+/g) || []).length;
-					if(whitespaces == 0) parent = vertical;
-					else if(whitespaces == 1) [parent, dist] = vertical.split(/\s+/);
-					else if(whitespaces == 2) [parent, child, dist] = vertical.split(/\s+/);
-					else throw Error(`wat is dis value man? "place: ${this.value}"`);
-					child = [child, '0%', '-50%', '-100%'][['top', 'center', 'bottom'].indexOf(child) + 1];
-					if(parent == 'top') add({ property: 'top', value: dist });
-					else if(parent == 'center') add({ property: 'top', value: '50%' });
-					else if(parent == 'bottom') add({ property: 'bottom', value: dist });
-					if(parseFloat(child) != 0) add({ property: 'add-transform', value: `translateY(${child})` });
-				}
-				if(horizontal){
-					let child = '0';
-					let dist = '0';
-					let parent;
-					let whitespaces = (horizontal.match(/\s+/g) || []).length;
-					if(whitespaces == 0) parent = horizontal;
-					else if(whitespaces == 1) [parent, dist] = horizontal.split(/\s+/);
-					else if(whitespaces == 2) [parent, child, dist] = horizontal.split(/\s+/);
-					else throw Error(`wat is dis value man? "place: ${this.value}"`);
-					child = [child, '0%', '-50%', '-100%'][['left', 'center', 'right'].indexOf(child) + 1];
-					if(parent == 'left') add({ property: 'left', value: dist });
-					else if(parent == 'center') add({ property: 'left', value: '50%' });
-					else if(parent == 'right') add({ property: 'right', value: dist });
-					if(parseFloat(child) != 0) add({ property: 'add-transform', value: `translateX(${child})` });
-				}
-				return parsed;
-			}
-			else return false;
+			else if(c == '\'' || c == '"') inString = c;
+			else if(c == '@') break;
+			index++;
 		}
-		readAtRules(){
-			if(!this.value.includes('@')) return false;
+		let baseValue = value.slice(0, index).trim();
+		const atRules = [];
+		let transition = false;
+		if(value[index] != '@') return { atRules, transition, baseValue };
+		value.slice(index + 1)
+			.split('@')
+			.forEach(rule => {
+				if(rule[0] == '<') atRules.push(`@media (max-width: ${rule.slice(1).trim()})`);
+				else if(rule[0] == '>') atRules.push(`@media (min-width: ${rule.slice(1).trim()})`);
+				else if(/\d| |\./.test(rule[0])) transition = rule.trim();
+				else atRules.push('@' + rule);
+			});
+		return { atRules, transition, baseValue };
+	};
+	const setAtRules = (chunk, index, chunks) => {
+		const { property, value, depth, tree } = chunk;
+		const { atRules, transition, baseValue } = getAtRules(value);
+		chunk.atRules.push(...atRules);
+		chunk.value = baseValue;
+		if(transition){
+			chunks.splice(index + 1, 0, {
+				property: 'add-transition',
+				value: property + ' ' + transition,
+				depth,
+				tree: [...tree],
+				atRules: [...chunk.atRules]
+			})
+		}
+	};
+	const filterInvalidIf = (chunk, index, chunks) => {
+		const valid = chunk.tree.every(leaf => {
+			if(leaf.slice(0, 3) != 'if(') return true;
+			let statement = leaf.slice(3, -1).trim();
+			if(statement == '') return false;
+			while(/\(\.*\)/.test(statement)) statement = statement.replace(/\([^\(\)]\)/, '');
+			statement = statement.replace(/[#.:][\w-]+/g, '')
+				.replace(/=(["'])(?:(?=(\\?))\2.)*?\1/g, '')
+				.replace(/\[[\w-]+=[\w-]\]/g, '')
+				.replace(/\[[\w-]+\]/g, '');
+			if(statement == '') return true;
+			return false;
+		});
+		if(!valid) chunks.splice(index, 1);
+	};
+	const getSelector = tree => {
+		const smartSplit = string => {
 			let inString = false;
 			let escaped = false;
-			let index = 0;
-			let at = -1;
-			for(const c of this.value){
-				if(inString) escaped = escaped ? false : c == '\\' ? true : escaped;
-				else if(c == '\'' || c == '"') inString = true;
-				else if(c == '@') break;
-				index++;
-			}
-			if(index == -1) return false;
-			let rules = this.value.slice(index).split('@').slice(1).map(rule => '@' + rule);
-			this.value = this.value.slice(0, index).trim();
-			const results = [this];
-			for(const rule of rules){
-				if(/\s/.test(rule[1])){
-					results.push(new Declaration({
-						property: 'add-transition',
-						value: this.property + ' ' + rule.slice(2).trim(),
-						selectorTree: [...this.selectorTree],
-						atRules: [...this.atRules]
-					}));
+			let list = [];
+			let current = '';
+			for(const c of string){
+				current += c;
+				if(inString){
+					if(escaped) escaped = false;
+					else{
+						if(c == '\\') escaped = true;
+						if(inString == c) inString = false;
+					}
 				}
-				else if(rule[1] == '<') this.atRules.push(`@media (max-width: ${rule.slice(2).trim()})`);
-				else if(rule[1] == '>') this.atRules.push(`@media (min-width: ${rule.slice(2).trim()})`);
-				else this.atRules.push(rule);
+				else if(c == '\'' || c == '"') inString = c;
+				else if(c == ','){
+					list.push(current.slice(0, -1));
+					current = '';
+				}
 			}
-			return results;
+			list.push(current);
+			return list;
+		};
+		const list = [''];
+		tree.forEach(selector => {
+			const parts = smartSplit(selector)
+				.map(part => part.trim());
+			list.fixedForEach((val, ind) => {
+				const selectorParts = parts.map(part => {
+					if(!val) return part;
+					if(part[0] == '&') return val + part.slice(1);
+					if(part.slice(0, 3) != 'if(') return val + ' ' + part;
+					return val + part.slice(3, -1);
+				});
+				list.splice(ind, 1, ...selectorParts);
+			});
+		});
+		const longSelector = list.join(', ');
+		if(longSelector.length >= 80) return list.join(',\n');
+		else return longSelector;
+	};
+	const setSelector = chunk => {
+		chunk.selector = getSelector(chunk.tree);
+	};
+	const spreadModel = (chunk, index, chunks) => {
+		if(chunk.property != 'model') return;
+		const parts = chunk.value.split('|').map(part => part.trim());
+		const list = [];
+		if(/^[\w-]+$/.test(parts[0])) list.push({property: 'display', value: parts.shift()});
+		const [width, height] = parts.shift().split(/\s+/);
+		if(width != '.') list.push({property: 'width', value: width});
+		if(height != '.') list.push({property: 'height', value: height});
+		const partProperties = ['padding', 'margin', 'box-sizing'];
+		for(let part = parts.shift(); part; part = parts.shift()){
+			list.push({property: partProperties.shift(), value: part});
 		}
-		getAddTransitionProperties(){
-			
-		}
-		getTransition(){
-			if(this.property != 'add-transition') return;
-			const leafSelectsParent = leaf => {
-				if(leaf.slice(0, 3) != 'if(') return false;
-				leaf = leaf.slice(3, -1).trim();
-				if(/[^.#]\bthis([\.#:]\w+)*$/.test(leaf)) return true;
-				if(/^([\.#:]\w+)*$/.test(leaf)) return true;
-				return false;
-			}
-			let i = this.selectorTree.length - 1;
-			while(leafSelectsParent(this.selectorTree[i])) i--;
-			const parentTree = this.selectorTree.slice(0, i + 1);
-			const treeIsParent = tree => tree.every((leaf, i) => leaf == parentTree[i]);
-			const treeIsChild = tree => tree.length >= parentTree.length && parentTree.every((leaf, i) => leaf == tree[i]);
-			const addTransitions = [this];
-			const transition = false;
-			for(let index = this.parent.data.indexOf(this); treeIsChild(this.parent.data[index].selectorTree) && index >= 0; index--){
-				const declaration = this.parent.data[index];
-				if(!treeIsParent(declaration.selectorTree)) continue;
-				if(declaration.property == 'add-transition') addTransitions.push(declaration);
-				if(declaration.property == 'transition' && !transition) transition = declaration;
-			}
-			console.log(addTransitions);
-		}
-	}
+		chunks.splice(index, 1, ...list.map(item => ({
+			...chunk,
+			tree: [...chunk.tree],
+			atRules: [...chunk.atRules],
+			...item
+		})));
+	};
+	const spreadPlace = (chunk, index, chunks) => {
+		const { property } = chunk;
+		if(property.slice(0, 5) != 'place') return;
+		const parts = chunk.value.split('|').map(part => part.trim());
+		const list = [];
 
-	file = new MCSSFile();
-	const selectorTree = [];
-	const atRules = [];
-	const tree = [];
-	for(const chunk of chunks){
-		if(chunk.depth > tree.length) throw Error(`Indentation is weird near "${chunk.text}"`);
-		while(chunk.depth < tree.length){
-			const lastLeaf = tree.pop();
-			if(lastLeaf.type == 'selector') selectorTree.pop();
-			else if(lastLeaf.type == 'atrule') atRules.pop();
+		const maxPartsLength = property == 'place' ? 3 : 2;
+		if(parts.length != maxPartsLength) list.push({property: 'position', value: 'absolute'});
+		else if(parts[0] != '.') list.push({property: 'position', value: parts.shift()});
+		else parts.shift();
+
+		const transform = {};
+		const readPart = (part, dir, [top, center, bottom]) => {
+			part = part.split(/\s+/);
+			if(part.length == 1) part.push(part[0], '0');
+			else if(part.length == 2){
+				if(places.includes(part[1])) part.push('0');
+				else part.splice(1, 0, part[0]);
+			}
+			if(part[0] == bottom){
+				transform[dir] = [part[1], '100%', '50%', '0%'][[top, center, bottom].indexOf(part[1]) + 1];
+				list.push({property: bottom, value: part[2]});
+			}
+			else if(part[0] == center){
+				transform[dir] = [part[1], '0%', '-50%', '-100%'][[top, center, bottom].indexOf(part[1]) + 1];
+				list.push({property: top, value: part[2]});
+			}
+			else{
+				transform[dir] = [part[1], '0%', '-50%', '-100%'][[top, center, bottom].indexOf(part[1]) + 1];
+				list.push({property: top, value: part[2]});
+			}
+		};
+		if(property != 'place-horizontal') readPart(parts.shift(), 'y', ['top', 'center', 'bottom']);
+		if(property != 'place-vertical') readPart(parts.shift(), 'x', ['left', 'center', 'right']);
+		if(parseFloat(transform.x)){
+			if(parseFloat(transform.y)) list.push({property: 'add-transform', value: `translate(${transform.x}, ${transform.y})`});
+			else list.push({property: 'add-transform', value: `translateX(${transform.x})`});
 		}
-		if(chunk.type == 'declaration'){
-			file.add({
-				text: chunk.text,
-				selectorTree: [...selectorTree],
-				atRules: [...atRules]
+		else if(parseFloat(transform.y)) list.push({property: 'add-transform', value: `translateY(${transform.y})`});
+		chunks.splice(index, 1, ...list.map(item => ({
+			...chunk,
+			tree: [...chunk.tree],
+			atRules: [...chunk.atRules],
+			...item
+		})));
+	};
+	const spreadQuadruples = (chunk, index, chunks) => {
+		const { property } = chunk;
+		if(!['margin', 'padding'].includes(property)) return;
+		const list = [];
+		const parts = chunk.value.split(/\s+/);
+		if(parts.every(part => part != '.')) return;
+		const add = values => {
+			values.forEach((value, index) => {
+				if(parts[value] == '.') return;
+				list.push({
+					property: property + '-' + ['top', 'right', 'bottom', 'left'][index],
+					value: parts[value]
+				});
 			});
 		}
-		else if(chunk.type == 'selector'){
-			tree.push(chunk);
-			selectorTree.push(chunk.text);
+		if(parts.length == 2) add([0, 1, 0, 1]);
+		if(parts.length == 3) add([0, 1, 2, 1]);
+		if(parts.length == 4) add([0, 1, 2, 3]);
+		chunks.splice(index, 1, ...list.map(item => ({
+			...chunk,
+			tree: [...chunk.tree],
+			atRules: [...chunk.atRules],
+			...item
+		})));
+	};
+	const getTransitionValue = (addChunks, baseChunk) => {
+		const { selector } = addChunks[0].selector;
+		let parts = (() => {
+			const result = [];
+			if(!baseChunk){
+				result.push(baseChunk.value.split(/\s*,\s*/)
+					.map(part => ({
+						property: part.match(/^\s*[\w-]*/)[0],
+						original: part
+					}))
+				);
+			}
+			addChunks.forEach(chunk => {
+				const parts = chunk.value.split(/\s*,\s*/)
+					.map(part => ({
+						property: part.match(/^\s*[\w-]*/)[0],
+						original: part
+					}));
+				result.push(...parts);
+			});
+			return result;
+		})();
+		const foundProperties = [];
+		for(let index = parts.length - 1; index >= 0; --index){
+			const part = parts[index];
+			if(foundProperties.includes(part.property)){
+				parts.splice(index, 1);
+				continue;
+			}
+			foundProperties.push(part.property);
 		}
-		else if(chunk.type == 'atrule'){
-			tree.push(chunk);
-			atRules.push(chunk.text);
-		}
-	}
+		parts = parts.map(part => part.original)
+		return newValue = parts.length > 2
+			? parts.reduce((acc, cur) => acc + ',\n\t\t' + cur)
+			: parts.reduce((acc, cur) => acc + ', ' + cur);
+	};
+	const setBaseTransitions = chunks => {
+		const initialChunk = chunks.find(chunk => {
+			if(chunk.property != 'add-transition') return false;
+			if(chunk.tree[chunk.tree.length - 1].slice(0, 3) == 'if(') return false;
+			return true;
+		});
+		const tree = 0;
+	};
+	const chunks = chunkify();
+	chunks.fixedForEach(setAtRules);
+	chunks.fixedForEach(filterInvalidIf);
+	chunks.fixedForEach(setSelector);
+	chunks.fixedForEach(spreadModel);
+	chunks.fixedForEach(spreadPlace);
+	chunks.fixedForEach(spreadQuadruples);
 
-	file.apply('readShorthand');
-	file.apply('readAtRules');
-
-	return file.data;
-}
-
-
-console.log(MCSS(`
-font-size: 16px;
-
-div  
-	model: block | 100px 200px | . . . 10px | 0 auto 108px | border-box;
-	place: top bottom 18px | left;
-	opacity: 1 @ .2s;
-	add-transition: color 2s ease;
-	if(.active) background-color: grey;
-	if(:hover)
-		border-radius: 50%;
-		background-color: red;
-	@media (max-width: 23px)
-		color: purple;
-		if(:active) opacity: 0 @ .2s .2s @supports (no: it-doesnt);
-	if(main > this) place-vertical: bottom top 0;
-	a, p // with a comment
-		@media (max-width: 100px)
-			font: 10px / 1.5;
-		color: black;
-
-span:focus outline: thicc;
-
-@keyframes fade
-	from opacity: 1;
-	via opacity: .2;
-	via opacity: .8;
-	to opacity: 0;
-`)[19].getTransition()
-);
-
-/* OUTPUT
-
-:root {
-	font-size: 16px;
-}
-
-div {
-	display: block;
-	width: 100px;
-	height: 200px;
-	padding-left: 10px;
-	margin: 0 auto 108px;
-	box-sizing: border-box;
-	position: absolute;
-	top: 18px;
-	left: 0;
-	transform: translateY(-100%);
-	opacity: 1;
-	transition: opacity .2s;
-}
-div.active { background-color: grey; }
-div:hover {
-	border-radius: 50%;
-	background-color: red;
-}
-div:active {
-	opacity: 0;
-	transition: opacity .2s .2s;
-}
-main > div { top: 0; }
-
-div a, div p { color: black; }
-
-@media (max-width: 1000px){
-	div a, div p {
-		font-size: 10px;
-		line-height: 1.5;
-	}
-}
-
-span:focus { outline: thicc; }
-
-@keyframes fade {
-	from { opacity: 1; }
-	33.333% { opacity: .2; }
-	66.667% { opacity: .8; }
-	to { opacity: 0; }
-}
-*/
+	return chunks;
+};

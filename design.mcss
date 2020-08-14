@@ -1,0 +1,36 @@
+@media nothing
+	font-size: 16px;
+
+div  
+	model: block | 100px 200px | . . . 10px | 0 auto 108px | border-box;
+	place: top bottom 18px | left;
+	opacity: 1 @ .2s;
+	transition: .5s;
+	add-transition: color 2s ease,
+		top .32s,
+		margin 1s .1s,
+		color 1s;
+	if(this + p) display: flex;
+	if(.active) background-color: grey;
+		h1, h2
+			size: mega-huge;
+	if([attr="s[quare]\"sda"])
+		border-radius: 50%;
+		background-color: red;
+	@media (max-width: 23px)
+		color: purple;
+		if(:active) opacity: 0 @ .2s .2s @supports (no: it-doesnt);
+	if(main > this) place-vertical: bottom top 0;
+	a, p // with a comment
+		@media (max-width: 100px)
+			font: 10px / 1.5;
+		color: black;
+
+span
+	if(:focus) outline: thicc;
+
+@keyframes fade
+	from opacity: 1;
+	via opacity: .2;
+	via opacity: .8;
+	to opacity: 0;
