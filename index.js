@@ -12,6 +12,10 @@ Array.prototype.fixedForEach = function(callback){
 };
 
 const MCSS = data => {
+	// strip carriage returns
+	(() => {
+		data = data.replace(/\r\n/g, '\n');
+	})();
 	const indent = (() => {
 		const gcd = (a, b) => b ? gcd(b, a % b) : a;
 		const indentArray = data.split('\n')
@@ -140,6 +144,7 @@ const MCSS = data => {
 	const chunkify = () => {
 		let chunks = [];
 		let buildingSelector = false;
+		let viaCount = 0;
 		let tree = [];
 		while(data){
 			if(!data.includes(';')) break;
@@ -171,7 +176,9 @@ const MCSS = data => {
 				const selectorEnd = newLineIndex == -1 || property.index < newLineIndex
 					? property.index - 1
 					: newLineIndex;
-				const selector = data.slice(0, selectorEnd).trim();
+				let selector = data.slice(0, selectorEnd).trim();
+				if(selector == 'via') selector += '-' + viaCount++;
+				else viaCount = 0;
 				if(lineDepth == tree.length) tree.push(selector);
 				else if(lineDepth < tree.length - 1) tree = tree.slice(0, lineDepth).concat(selector);
 				else if(buildingSelector) tree[lineDepth] += '\n' + selector;
@@ -236,7 +243,7 @@ const MCSS = data => {
 			if(leaf.slice(0, 3) != 'if(') return true;
 			let statement = leaf.slice(3, -1).trim();
 			if(statement == '') return false;
-			while(/\(\.*\)/.test(statement)) statement = statement.replace(/\([^\(\)]\)/, '');
+			while(/\([^\(\)]+\)/.test(statement)) statement = statement.replace(/\([^\(\)]+\)/, '');
 			statement = statement.replace(/[#.:][\w-]+/g, '')
 				.replace(/=(["'])(?:(?=(\\?))\2.)*?\1/g, '')
 				.replace(/\[[\w-]+=[\w-]\]/g, '')
@@ -382,11 +389,10 @@ const MCSS = data => {
 		})));
 	};
 	const getTransitionValue = (addChunks, baseChunk) => {
-		const { selector } = addChunks[0].selector;
 		let parts = (() => {
 			const result = [];
-			if(!baseChunk){
-				result.push(baseChunk.value.split(/\s*,\s*/)
+			if(baseChunk){
+				result.push(...baseChunk.value.split(/\s*,\s*/)
 					.map(part => ({
 						property: part.match(/^\s*[\w-]*/)[0],
 						original: part
@@ -414,8 +420,19 @@ const MCSS = data => {
 		}
 		parts = parts.map(part => part.original)
 		return newValue = parts.length > 2
-			? parts.reduce((acc, cur) => acc + ',\n\t\t' + cur)
+			? parts.reduce((acc, cur) => acc + ',\n' + cur)
 			: parts.reduce((acc, cur) => acc + ', ' + cur);
+	};
+	const getTransformValue = (addChunks, baseChunk) => {
+		let parts = (() => {
+			const result = [];
+			if(baseChunk) result.unshift(baseChunk.value);
+			result.unshift(...addChunks.map(chunk => chunk.value).reverse());
+			return result;
+		})();
+		return newValue = parts.reduce((acc, cur) => acc + cur.length, 0) > 80
+			? parts.reduce((acc, cur) => acc + '\n\t\t' + cur)
+			: parts.reduce((acc, cur) => acc + ' ' + cur);
 	};
 	const setBaseTransitions = chunks => {
 		const initialChunk = chunks.find(chunk => {
@@ -423,7 +440,173 @@ const MCSS = data => {
 			if(chunk.tree[chunk.tree.length - 1].slice(0, 3) == 'if(') return false;
 			return true;
 		});
-		const tree = 0;
+		if(!initialChunk) return;
+		const tree = initialChunk.tree;
+		while(tree[tree.length - 1].slice(0, 3) == 'if(') tree.pop();
+		const selector = getSelector(tree);
+		const addChunks = chunks.filter(chunk => chunk.property == 'add-transition' && chunk.selector == selector);
+		const baseChunk = chunks.filter(chunk => chunk.property == 'transition' && chunk.selector == selector).slice(-1)[0];
+		const value = getTransitionValue(addChunks, baseChunk);
+		if(baseChunk){
+			baseChunk.value = value;
+		}
+		else{
+			initialChunk.value = value;
+			initialChunk.property = 'transition';
+		}
+		chunks.fixedForEach((chunk, index) => {
+			if(chunk.property != 'add-transition') return;
+			if(chunk.selector != selector) return;
+			chunks.splice(index, 1);
+		});
+		setBaseTransitions(chunks);
+	};
+	const setIfTransitions = chunks => {
+		const initialChunk = chunks.find(chunk => chunk.property == 'add-transition');
+		if(!initialChunk) return;
+		const tree = initialChunk.tree;
+		const selector = getSelector(tree);
+		while(tree[tree.length - 1].slice(0, 3) == 'if(') tree.pop();
+		const baseSelector = getSelector(tree);
+		const addChunks = chunks.filter(chunk => chunk.property == 'add-transition' && chunk.selector == selector);
+		const baseChunk = chunks.filter(chunk => chunk.property == 'transition' && chunk.selector == baseSelector).slice(-1)[0];
+		const value = getTransitionValue(addChunks, baseChunk);
+		initialChunk.property = 'transition';
+		initialChunk.value = value;
+		chunks.fixedForEach((chunk, index) => {
+			if(chunk.property != 'add-transition') return;
+			if(chunk.selector != selector) return;
+			chunks.splice(index, 1);
+		});
+		setIfTransitions(chunks);
+	};
+	const setBaseTransforms = chunks => {
+		const initialChunk = chunks.find(chunk => {
+			if(chunk.property != 'add-transform') return false;
+			if(chunk.tree[chunk.tree.length - 1].slice(0, 3) == 'if(') return false;
+			return true;
+		});
+		if(!initialChunk) return;
+		const tree = initialChunk.tree;
+		while(tree[tree.length - 1].slice(0, 3) == 'if(') tree.pop();
+		const selector = getSelector(tree);
+		const addChunks = chunks.filter(chunk => chunk.property == 'add-transform' && chunk.selector == selector);
+		const baseChunk = chunks.filter(chunk => chunk.property == 'transform' && chunk.selector == selector).slice(-1)[0];
+		const value = getTransformValue(addChunks, baseChunk);
+		if(baseChunk){
+			baseChunk.value = value;
+		}
+		else{
+			initialChunk.value = value;
+			initialChunk.property = 'transform';
+		}
+		chunks.fixedForEach((chunk, index) => {
+			if(chunk.property != 'add-transform') return;
+			if(chunk.selector != selector) return;
+			chunks.splice(index, 1);
+		});
+		setBaseTransforms(chunks);
+	};
+	const setIfTransforms = chunks => {
+		const initialChunk = chunks.find(chunk => chunk.property == 'add-transform');
+		if(!initialChunk) return;
+		const tree = initialChunk.tree;
+		const selector = getSelector(tree);
+		while(tree[tree.length - 1].slice(0, 3) == 'if(') tree.pop();
+		const baseSelector = getSelector(tree);
+		const addChunks = chunks.filter(chunk => chunk.property == 'add-transform' && chunk.selector == selector);
+		const baseChunk = chunks.filter(chunk => chunk.property == 'transform' && chunk.selector == baseSelector).slice(-1)[0];
+		const value = getTransformValue(addChunks, baseChunk);
+		initialChunk.property = 'transform';
+		initialChunk.value = value;
+		chunks.fixedForEach((chunk, index) => {
+			if(chunk.property != 'add-transform') return;
+			if(chunk.selector != selector) return;
+			chunks.splice(index, 1);
+		});
+		setIfTransforms(chunks);
+	};
+	const fixEmptySelector = chunks => {
+		chunks.forEach(chunk => {
+			if(!chunk.tree.length) chunk.selector = ':root';
+		});
+	};
+	const outputKeyFrames = chunks => {
+		const keyframeChunks = [];
+		chunks.fixedForEach((chunk, index) => {
+			const lastRule = chunk.atRules[chunk.atRules.length - 1];
+			if(!lastRule) return;
+			if(lastRule.slice(0, 10) == '@keyframes'){
+				chunks.splice(index, 1);
+				keyframeChunks.push(chunk);
+			}
+		});
+		while(keyframeChunks.length){
+			const atrule = keyframeChunks[0].atRules[keyframeChunks[0].atRules.length - 1];
+			const relevantChunks = [];
+			keyframeChunks.fixedForEach((chunk, index) => {
+				if(chunk.atRules[chunk.atRules.length - 1] != atrule) return;
+				relevantChunks.push(chunk);
+				keyframeChunks.splice(index, 1);
+			});
+		}
+	};
+	const output = (chunks, result = '', indentation = '') => {
+		const outputChunks = [];
+		chunks.fixedForEach((chunk, index) => {
+			if(chunk.atRules.length != 0) return;
+			outputChunks.push(chunk);
+			chunks.splice(index, 1);
+		});
+		let previousIsOneLiner = false;
+		while(outputChunks.length){
+			const selector = outputChunks[0].selector;
+			let block = '';
+			let firstValue = '';
+			let oneLiner = true;
+			outputChunks.fixedForEach((chunk, index) => {
+				if(chunk.selector != selector) return;
+				let { property, value } = chunk;
+				if(value.includes('\n')){
+					oneLiner = false;
+					value = value.replace(/\n/g, '\n' + indentation + '\t\t');
+				}
+				if(!firstValue) firstValue = property + ': ' + value + ';';
+				else {
+					oneLiner = false;
+					block += indentation + '\t' + property + ': ' + value + ';\n';
+				}
+				outputChunks.splice(index, 1);
+			});
+			if(oneLiner){
+				if(previousIsOneLiner) result = result.slice(0, -1);
+				result += indentation + selector + ' { ' + firstValue + ' }\n\n';
+			}
+			else{
+				result += indentation + selector + ' {\n'
+					+ indentation + '\t' + firstValue + '\n'
+					+ block
+					+ indentation
+					+ '}\n\n';
+			}
+			previousIsOneLiner = oneLiner;
+		}
+		if(indentation) result = result.slice(0, -1);
+		while(chunks.length){
+			const outputAtRule = chunks[0].atRules[0];
+			const outputAtRuleChunks = [];
+			chunks.fixedForEach((chunk, index) => {
+				if(chunk.atRules[0] != outputAtRule) return;
+				chunk.atRules.shift();
+				outputAtRuleChunks.push(chunk);
+				chunks.splice(index, 1);
+			});
+			result += indentation + outputAtRule + ' {\n'
+				+ output(outputAtRuleChunks, '', indentation + '\t')
+				+ indentation + '}\n';
+			if(!indentation) result += '\n';
+		}
+		return result;
 	};
 	const chunks = chunkify();
 	chunks.fixedForEach(setAtRules);
@@ -432,6 +615,11 @@ const MCSS = data => {
 	chunks.fixedForEach(spreadModel);
 	chunks.fixedForEach(spreadPlace);
 	chunks.fixedForEach(spreadQuadruples);
-
-	return chunks;
+	setBaseTransitions(chunks);
+	setIfTransitions(chunks);
+	setBaseTransforms(chunks);
+	setIfTransforms(chunks);
+	fixEmptySelector(chunks);
+	const keyframes = outputKeyFrames(chunks);
+	return output(chunks);
 };
