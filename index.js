@@ -219,7 +219,7 @@ const MCSS = data => {
 				if(rule[0] == '<') atRules.push(`@media (max-width: ${rule.slice(1).trim()})`);
 				else if(rule[0] == '>') atRules.push(`@media (min-width: ${rule.slice(1).trim()})`);
 				else if(/\d| |\./.test(rule[0])) transition = rule.trim();
-				else atRules.push('@' + rule);
+				else atRules.push('@' + rule.trim());
 			});
 		return { atRules, transition, baseValue };
 	};
@@ -333,7 +333,7 @@ const MCSS = data => {
 			part = part.split(/\s+/);
 			if(part.length == 1) part.push(part[0], '0');
 			else if(part.length == 2){
-				if(places.includes(part[1])) part.push('0');
+				if([top, center, bottom].includes(part[1])) part.push('0');
 				else part.splice(1, 0, part[0]);
 			}
 			if(part[0] == bottom){
@@ -342,7 +342,7 @@ const MCSS = data => {
 			}
 			else if(part[0] == center){
 				transform[dir] = [part[1], '0%', '-50%', '-100%'][[top, center, bottom].indexOf(part[1]) + 1];
-				list.push({property: top, value: part[2]});
+				list.push({property: top, value: '50%'});
 			}
 			else{
 				transform[dir] = [part[1], '0%', '-50%', '-100%'][[top, center, bottom].indexOf(part[1]) + 1];
@@ -532,6 +532,7 @@ const MCSS = data => {
 		});
 	};
 	const outputKeyFrames = chunks => {
+		let result = '';
 		const keyframeChunks = [];
 		chunks.fixedForEach((chunk, index) => {
 			const lastRule = chunk.atRules[chunk.atRules.length - 1];
@@ -545,11 +546,49 @@ const MCSS = data => {
 			const atrule = keyframeChunks[0].atRules[keyframeChunks[0].atRules.length - 1];
 			const relevantChunks = [];
 			keyframeChunks.fixedForEach((chunk, index) => {
-				if(chunk.atRules[chunk.atRules.length - 1] != atrule) return;
+				if(chunk.atRules[keyframeChunks[0].atRules.length - 1] != atrule) return;
 				relevantChunks.push(chunk);
 				keyframeChunks.splice(index, 1);
 			});
+			relevantChunks.forEach(chunk => {
+				chunk.selector = chunk.tree[chunk.tree.length - 1];
+			});
+			const frames = relevantChunks.map(chunk => chunk.tree[chunk.tree.length - 1])
+				.map(selector => {
+					if(selector == 'from') return 0;
+					if(selector == 'to') return 100;
+					const percent = parseFloat(selector);
+					if(!isNaN(percent)) return percent;
+					return selector;
+				});
+			while(frames.find(frame => typeof frame == 'string')){
+				let foundVia = false;
+				let matches = [];
+				let startFrame, endFrame;
+				for(let i = 0; i < frames.length; ++i){
+					const frame = frames[i];
+					if(typeof frame == 'string'){
+						foundVia = true;
+						matches.push([+frame.slice(4), i]);
+					}
+					else if(startFrame === undefined && typeof frames[i + 1] == 'string') startFrame = frame;
+					else if(foundVia){
+						endFrame = frame;
+						break;
+					}
+				}
+				const pieces = matches[matches.length - 1][0] + 2;
+				const getPercentage = num => Math.round(1000 * (startFrame + (num + 1) * (endFrame - startFrame) / pieces)) / 1000;
+				matches.forEach(match => {
+					const index = match[1];
+					const percent = getPercentage(match[0]);
+					frames[index] = percent;
+					relevantChunks[index].selector = percent + '%';
+				});
+			}
+			result += output(relevantChunks).replace(/\n+/g, '\n') + '\n';
 		}
+		return result;
 	};
 	const output = (chunks, result = '', indentation = '') => {
 		const outputChunks = [];
@@ -621,5 +660,6 @@ const MCSS = data => {
 	setIfTransforms(chunks);
 	fixEmptySelector(chunks);
 	const keyframes = outputKeyFrames(chunks);
-	return output(chunks);
+	const outputCSS = output(chunks);
+	return (outputCSS + '\n' + keyframes).replace(/\n+$/, '\n');
 };
