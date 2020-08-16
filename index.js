@@ -1,4 +1,4 @@
-/*if(process.argv.length != 3) throw 'Invalid argument list';
+if(process.argv.length != 3) throw 'Invalid argument list';
 const inputFile = process.argv[2];
 if(inputFile.slice(-5) != '.mcss') throw 'Invalid input file extension';
 
@@ -13,7 +13,7 @@ fs.readFile(inputFile, 'utf-8', (error, data) => {
 		if(error) console.log(error);
 		else console.log('Enjoy your beautiful CSS!');
 	});
-});*/
+});
 
 Array.prototype.fixedForEach = function(callback){
 	for(let i = this.length - 1; i >= 0; --i){
@@ -707,14 +707,3 @@ const MCSS = data => {
 	const outputCSS = output(chunks);
 	return (outputCSS + '\n' + keyframes).replace(/\n+$/, '\n').replace(/^\n+/, '');
 };
-
-
-console.log(MCSS(`
-button
-	model: block | 400px . | 12px;
-	position: relative;
-	::after
-		model: block | 100% 100%;
-		place: top | left;
-		background-color: khaki;
-`));
