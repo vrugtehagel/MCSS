@@ -1,7 +1,17 @@
+if(process.argv.length != 3) throw 'Invalid argument list';
+const inputFile = process.argv[2];
+if(inputFile.slice(-5) != '.mcss') throw 'Invalid input file extension';
+
 const fs = require('fs');
-fs.readFile('design.mcss', 'utf-8', (error, data) => {
+const path = require('path');
+fs.readFile(inputFile, 'utf-8', (error, data) => {
 	if(error) throw error;
-	console.log(MCSS(data));
+	const fileContent = MCSS(data);
+	const newPath = inputFile.slice(0, -4) + 'css';
+	fs.writeFile(newPath, fileContent, error => {
+		if(error) console.log(error);
+		else console.log('Enjoy your beautiful CSS!');
+	});
 });
 
 Array.prototype.fixedForEach = function(callback){
@@ -661,5 +671,5 @@ const MCSS = data => {
 	fixEmptySelector(chunks);
 	const keyframes = outputKeyFrames(chunks);
 	const outputCSS = output(chunks);
-	return (outputCSS + '\n' + keyframes).replace(/\n+$/, '\n');
+	return (outputCSS + '\n' + keyframes).replace(/\n+$/, '\n').replace(/^\n+/, '');
 };
