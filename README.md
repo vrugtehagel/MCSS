@@ -114,8 +114,8 @@ place: [position]? | [place-vertical] | [place-horizontal];
 ```
 where
 ```
-place-vertical: [position | ]? [anchorParent] [anchorThis]? [offset]?;
-place-horizontal: [position | ]? [anchorParent] [anchorThis]? [offset]?;
+place-vertical: [anchorParent] [anchorThis]? [offset]?;
+place-horizontal: [anchorParent] [anchorThis]? [offset]?;
 ```
 Essentially, you have control over the anchor point of the element you're placing, as well as the position relative to the parent. Let's do an example:
 ```
@@ -137,6 +137,10 @@ If the `position` value is omitted, it will default to `absolute`. If you don't 
 
 If `offset` is omitted, it will default to `0`. Note that when setting `anchorThis` to a percentage value, setting `offset` is required. Otherwise, it will assume the value given is for `offset`, and it will assume `anchorThis` was omitted.
 
+You may set `place-vertical` or `place-horizontal` directly. It also allows for a `position` property to be set, so valid syntax would be
+```
+place-vertical: absolute | top 40% 10em;
+```
 Lastly, there's some spice for you: centering elements has never been easier. You can now use the following syntax:
 ```
 place-vertical: center [anchorThis]?;
