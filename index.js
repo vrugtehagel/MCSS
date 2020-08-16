@@ -80,6 +80,11 @@ const MCSS = data => {
 		}
 		data = result;
 	})();
+	// soft check if file is okay
+	(() => {
+		if(/[{}]/.test(data)) console.log('Warning: curly braces found.');
+		if(/!important/.test(data)) console.log('Warning: use of !important is discouraged.');
+	})();
 	const findSemiColon = () => {
 		let inString = false;
 		let escaped = false;
@@ -201,7 +206,7 @@ const MCSS = data => {
 			}
 		}
 		if(chunks.some(chunk => chunk.tree.some(leaf => leaf === undefined))){
-			console.log('Your indentation is weird...');
+			console.log('Error: weird indentation found.');
 			return false;
 		}
 		chunks.forEach(chunk => {
@@ -296,6 +301,7 @@ const MCSS = data => {
 		};
 		const list = [''];
 		tree.forEach(selector => {
+			if(selector.slice(-1) == '{') selector = selector.slice(0, -1);
 			const parts = smartSplit(selector)
 				.map(part => part.trim());
 			list.fixedForEach((val, ind) => {
