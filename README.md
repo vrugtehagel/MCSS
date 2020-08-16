@@ -44,7 +44,7 @@ p
 ```
 still has the same output as the previous example.
 
-### if statements
+### `if` statements
 SASS has the `&` syntax for psuedoclasses and the like. MCSS uses a different syntax, more accurately representing what it does:
 ```
 a
@@ -77,7 +77,7 @@ div {
 }
 ```
 
-### the `model` property
+### The `model` property
 MCSS introduces a new property: `model`. It bundles all the properties related to the box model. The syntax is as follows:
 ```
 model: [display | ]? [width] [height] [ | padding [ | margin [ | box-sizing]?]?]?;
@@ -107,7 +107,7 @@ article {
 }
 ```
 
-### the `place` property
+### The `place` property
 Similar to the `model`, property, `place` bundles some related CSS properties. However, the `place` property is not as straight-forward as the `model` property. The syntax is
 ```
 place: [position]? | [place-vertical] | [place-horizontal];
@@ -303,7 +303,7 @@ svg {
 
 svg:hover { transform: rotate(360deg) scale(2); }
 ```
-### animations using `@keyframes`
+### Animations using `@keyframes`
 There is a slight improvement on how you use `@keyframes` in MCSS. You now got the `via` keyword, that linearly interpolates between the last absolute value set before it and the first one after it. That means, you can do
 ```
 @keyframes blinkOutInOut
@@ -358,5 +358,47 @@ will become
 }
 ```
 
-## To do list
- - make ::after and ::before and content stuff
+### Pseudoelements
+The syntax in CSS, but in SASS even more, always has been a bit odd when it comes to psuedoelements. For example, the `div::after` element would be a child of the `div`, so it would make sense for it to have that structure when nesting properties. Thus, in MCSS, you can do:
+```
+span.asterisk
+	font-weight: bolder;
+	::before content: "*";
+	::after content: "*";
+```
+will result in
+```
+span.asterisk { font-weight: bolder; }
+span.asterisk::before { content: "*"; }
+span.asterisk::after { content: "*"; }
+```
+Of course, we all know, pseudoelements are rarely used to prepend or append text, but often they are elements with a purely visual purpose. MCSS understands that when you define a `::before` or `::after` element, you want it to have a `content` property. So, if you omit the `content` property, MCSS will see it and set `content: "";` automatically. So, one could write
+```
+button
+	model: block | 400px . | 12px;
+	position: relative;
+	::after
+		model: block | 100% 100%;
+		place: top | left;
+		background-color: khaki;
+```
+yielding
+```
+button {
+	display: block;
+	width: 400px;
+	padding: 12px;
+	position: relative;
+}
+
+button::after {
+	content: "";
+	display: block;
+	width: 100%;
+	height: 100%;
+	position: absolute;
+	top: 0;
+	left: 0;
+	background-color: khaki;
+}
+```

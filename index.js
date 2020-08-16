@@ -1,4 +1,4 @@
-if(process.argv.length != 3) throw 'Invalid argument list';
+/*if(process.argv.length != 3) throw 'Invalid argument list';
 const inputFile = process.argv[2];
 if(inputFile.slice(-5) != '.mcss') throw 'Invalid input file extension';
 
@@ -7,12 +7,13 @@ const path = require('path');
 fs.readFile(inputFile, 'utf-8', (error, data) => {
 	if(error) throw error;
 	const fileContent = MCSS(data);
+	if(fileContent === false) return;
 	const newPath = inputFile.slice(0, -4) + 'css';
 	fs.writeFile(newPath, fileContent, error => {
 		if(error) console.log(error);
 		else console.log('Enjoy your beautiful CSS!');
 	});
-});
+});*/
 
 Array.prototype.fixedForEach = function(callback){
 	for(let i = this.length - 1; i >= 0; --i){
@@ -26,6 +27,8 @@ const MCSS = data => {
 	(() => {
 		data = data.replace(/\r\n/g, '\n');
 	})();
+	// unindent the whole file if everything is indented
+	while(!/\n\S|^\S/.test(data)) data = data.replace(/\n\s|^\s/, '\n');
 	const indent = (() => {
 		const gcd = (a, b) => b ? gcd(b, a % b) : a;
 		const indentArray = data.split('\n')
@@ -197,6 +200,10 @@ const MCSS = data => {
 				buildingSelector = true;
 			}
 		}
+		if(chunks.some(chunk => chunk.tree.some(leaf => leaf === undefined))){
+			console.log('Your indentation is weird...');
+			return false;
+		}
 		chunks.forEach(chunk => {
 			chunk.atRules = chunk.tree.filter(leaf => leaf[0] == '@');
 			chunk.tree = chunk.tree.filter(leaf => leaf[0] != '@');
@@ -295,7 +302,9 @@ const MCSS = data => {
 				const selectorParts = parts.map(part => {
 					if(!val) return part;
 					if(part[0] == '&') return val + part.slice(1);
+					if(part.slice(0, 2) == '::') return val + part;
 					if(part.slice(0, 3) != 'if(') return val + ' ' + part;
+					// do something more here
 					return val + part.slice(3, -1);
 				});
 				list.splice(ind, 1, ...selectorParts);
@@ -541,6 +550,29 @@ const MCSS = data => {
 			if(!chunk.tree.length) chunk.selector = ':root';
 		});
 	};
+	const addMissingContents = chunks => {
+		const selectors = [];
+		chunks.forEach(chunk => {
+			if(chunk.atRules.length) return;
+			if(chunk.selector.slice(-8) != '::before' && chunk.selector.slice(-7) != '::after') return;
+			if(selectors.includes(chunk.selector)) return;
+			selectors.push(chunk.selector);
+		});
+		selectors.forEach(selector => {
+			const relevantChunks = chunks.filter(chunk => chunk.selector == selector);
+			const contentExists = chunks.some(chunk => chunk.property == 'content');
+			if(contentExists) return;
+			const firstChunk = relevantChunks[0];
+			const index = chunks.indexOf(firstChunk);
+			chunks.splice(index, 0, {
+				...firstChunk,
+				property: 'content',
+				value: '""',
+				tree: [...firstChunk.tree],
+				atRules: []
+			});
+		});
+	};
 	const outputKeyFrames = chunks => {
 		let result = '';
 		const keyframeChunks = [];
@@ -658,6 +690,7 @@ const MCSS = data => {
 		return result;
 	};
 	const chunks = chunkify();
+	if(chunks === false) return false;
 	chunks.fixedForEach(setAtRules);
 	chunks.fixedForEach(filterInvalidIf);
 	chunks.fixedForEach(setSelector);
@@ -668,8 +701,20 @@ const MCSS = data => {
 	setIfTransitions(chunks);
 	setBaseTransforms(chunks);
 	setIfTransforms(chunks);
+	addMissingContents(chunks);
 	fixEmptySelector(chunks);
 	const keyframes = outputKeyFrames(chunks);
 	const outputCSS = output(chunks);
 	return (outputCSS + '\n' + keyframes).replace(/\n+$/, '\n').replace(/^\n+/, '');
 };
+
+
+console.log(MCSS(`
+button
+	model: block | 400px . | 12px;
+	position: relative;
+	::after
+		model: block | 100% 100%;
+		place: top | left;
+		background-color: khaki;
+`));
