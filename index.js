@@ -213,6 +213,10 @@ const MCSS = data => {
 				const selectorEnd = newLineIndex == -1 || property.index < newLineIndex
 					? property.index - 1
 					: newLineIndex;
+				if(selectorEnd == 0){
+					data = data.slice(1);
+					continue;
+				}
 				let selector = data.slice(0, selectorEnd).trim();
 				if(selector == 'via') selector += '-' + viaCount++;
 				else viaCount = 0;
