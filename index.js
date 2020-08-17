@@ -306,10 +306,9 @@ const MCSS = data => {
 				.map(part => part.trim());
 			list.fixedForEach((val, ind) => {
 				const selectorParts = parts.map(part => {
-					if(!val) return part;
 					if(part[0] == '&') return val + part.slice(1);
 					if(part.slice(0, 2) == '::') return val + part;
-					if(part.slice(0, 3) != 'if(') return val + ' ' + part;
+					if(part.slice(0, 3) != 'if(') return val ? val + ' ' + part : part;
 					// do something more here
 					return val + part.slice(3, -1);
 				});
