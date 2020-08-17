@@ -1,5 +1,9 @@
 try{
-	if(process && process.argv && process.argv.length > 2){
+	let isNode = true;
+	try{ process; }
+	catch(error){ isNode = false; }
+
+	if(isNode && process.argv.length > 2){
 		const fs = require('fs');
 		const path = require('path');
 
