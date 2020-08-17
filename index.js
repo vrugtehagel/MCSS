@@ -1,28 +1,33 @@
-if(process && process.argv && process.argv.length > 2){
-	const fs = require('fs');
-	const path = require('path');
+try{
+	if(process && process.argv && process.argv.length > 2){
+		const fs = require('fs');
+		const path = require('path');
 
-	if(process.argv.length > 3) throw 'Invalid argument list';
-	const args1 = process.argv[2];
-	if(args1 == 'version' || args1 == '-v'){
-		fs.readFile('./package.json', 'utf-8', (error, data) => {
-			if(error) throw error;
-			console.log(JSON.parse(data).version);
-		});
-	}
-	else{
-		if(args1.slice(-5) != '.mcss') throw 'Invalid input file extension';
-		fs.readFile(args1, 'utf-8', (error, data) => {
-			if(error) throw error;
-			const fileContent = MCSS(data);
-			if(fileContent === false) return;
-			const newPath = args1.slice(0, -4) + 'css';
-			fs.writeFile(newPath, fileContent, error => {
-				if(error) console.log(error);
-				else console.log('Enjoy your beautiful CSS!');
+		if(process.argv.length > 3) throw 'Invalid argument list';
+		const args1 = process.argv[2];
+		if(args1 == 'version' || args1 == '-v'){
+			fs.readFile('./package.json', 'utf-8', (error, data) => {
+				if(error) throw error;
+				console.log(JSON.parse(data).version);
 			});
-		});
+		}
+		else{
+			if(args1.slice(-5) != '.mcss') throw 'Invalid input file extension';
+			fs.readFile(args1, 'utf-8', (error, data) => {
+				if(error) throw error;
+				const fileContent = MCSS(data);
+				if(fileContent === false) return;
+				const newPath = args1.slice(0, -4) + 'css';
+				fs.writeFile(newPath, fileContent, error => {
+					if(error) console.log(error);
+					else console.log('Enjoy your beautiful CSS!');
+				});
+			});
+		}
 	}
+}
+catch(error){
+	console.log(error);
 }
 
 Array.prototype.fixedForEach = function(callback){
@@ -215,10 +220,7 @@ const MCSS = data => {
 				buildingSelector = true;
 			}
 		}
-		if(chunks.some(chunk => chunk.tree.some(leaf => leaf === undefined))){
-			console.log('Error: weird indentation found.');
-			return false;
-		}
+		if(chunks.some(chunk => chunk.tree.some(leaf => leaf === undefined))) throw 'Error: weird indentation found.';
 		chunks.forEach(chunk => {
 			chunk.atRules = chunk.tree.filter(leaf => leaf[0] == '@');
 			chunk.tree = chunk.tree.filter(leaf => leaf[0] != '@');
@@ -704,21 +706,27 @@ const MCSS = data => {
 		}
 		return result;
 	};
-	const chunks = chunkify();
-	if(chunks === false) return false;
-	chunks.fixedForEach(setAtRules);
-	chunks.fixedForEach(filterInvalidIf);
-	chunks.fixedForEach(setSelector);
-	chunks.fixedForEach(spreadModel);
-	chunks.fixedForEach(spreadPlace);
-	chunks.fixedForEach(spreadQuadruples);
-	setBaseTransitions(chunks);
-	setIfTransitions(chunks);
-	setBaseTransforms(chunks);
-	setIfTransforms(chunks);
-	addMissingContents(chunks);
-	fixEmptySelector(chunks);
-	const keyframes = outputKeyFrames(chunks);
-	const outputCSS = output(chunks);
-	return (outputCSS + '\n' + keyframes).replace(/\n+$/, '\n').replace(/^\n+/, '');
+	try{
+		const chunks = chunkify();
+		if(chunks === false) return false;
+		chunks.fixedForEach(setAtRules);
+		chunks.fixedForEach(filterInvalidIf);
+		chunks.fixedForEach(setSelector);
+		chunks.fixedForEach(spreadModel);
+		chunks.fixedForEach(spreadPlace);
+		chunks.fixedForEach(spreadQuadruples);
+		setBaseTransitions(chunks);
+		setIfTransitions(chunks);
+		setBaseTransforms(chunks);
+		setIfTransforms(chunks);
+		addMissingContents(chunks);
+		fixEmptySelector(chunks);
+		const keyframes = outputKeyFrames(chunks);
+		const outputCSS = output(chunks);
+		return (outputCSS + '\n' + keyframes).replace(/\n+$/, '\n').replace(/^\n+/, '');
+	}
+	catch(error){
+		if(!MCSS.suppressErrors) console.log(error);
+		return false;
+	}
 };
