@@ -12,6 +12,17 @@ At-rules. For any responsive design, we will use `@media` rules - specifically `
 
 MCSS tries to solve a lot of these things. It tries to make it possible to write CSS in a less vertically oriented format, while still outputting high-quality, clean CSS like a real human wrote it.
 
+## Installing MCSS
+You can install MCSS using `npm` - simply run
+```
+npm install -g mcss
+```
+and you're good to go! You can check if everything installed correctly by running `mcss version`. To compile a `.mcss` file to CSS, simply run
+```
+mcss filename.mcss
+```
+and it will output your gorgeous CSS to `filename.css`. Enjoy!
+
 ## Feature list
 Enough time wasted selling MCSS. Let's get to the good stuff!
 ### Syntax
