@@ -1,19 +1,29 @@
-if(process.argv.length != 3) throw 'Invalid argument list';
-const inputFile = process.argv[2];
-if(inputFile.slice(-5) != '.mcss') throw 'Invalid input file extension';
+if(process && process.argv && process.argv.length > 2){
+	const fs = require('fs');
+	const path = require('path');
 
-const fs = require('fs');
-const path = require('path');
-fs.readFile(inputFile, 'utf-8', (error, data) => {
-	if(error) throw error;
-	const fileContent = MCSS(data);
-	if(fileContent === false) return;
-	const newPath = inputFile.slice(0, -4) + 'css';
-	fs.writeFile(newPath, fileContent, error => {
-		if(error) console.log(error);
-		else console.log('Enjoy your beautiful CSS!');
-	});
-});
+	if(process.argv.length > 3) throw 'Invalid argument list';
+	const args1 = process.argv[2];
+	if(args1 == 'version' || args1 == '-v'){
+		fs.readFile('./package.json', 'utf-8', (error, data) => {
+			if(error) throw error;
+			console.log(JSON.parse(data).version);
+		});
+	}
+	else{
+		if(args1.slice(-5) != '.mcss') throw 'Invalid input file extension';
+		fs.readFile(args1, 'utf-8', (error, data) => {
+			if(error) throw error;
+			const fileContent = MCSS(data);
+			if(fileContent === false) return;
+			const newPath = args1.slice(0, -4) + 'css';
+			fs.writeFile(newPath, fileContent, error => {
+				if(error) console.log(error);
+				else console.log('Enjoy your beautiful CSS!');
+			});
+		});
+	}
+}
 
 Array.prototype.fixedForEach = function(callback){
 	for(let i = this.length - 1; i >= 0; --i){
