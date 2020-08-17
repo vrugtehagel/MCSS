@@ -15,7 +15,7 @@ MCSS tries to solve a lot of these things. It tries to make it possible to write
 ## Installing MCSS
 You can install MCSS using `npm` - simply run
 ```
-npm install -g mcss
+npm install -g @vrugtehagel/mcss
 ```
 and you're good to go! You can check if everything installed correctly by running `mcss version`. To compile a `.mcss` file to CSS, simply run
 ```
