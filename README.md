@@ -96,7 +96,7 @@ model: [display | ]? [width] [height] [ | padding [ | margin [ | box-sizing]?]?]
 So, here's a few examples:
 ```
 section model: inline-block | 100% 500px | 50px | 0 auto . | border-box;
-article model: 100vw 100vh | . ;
+article model: 100vw 100vh | . | 50px 0;
 ```
 will output
 ```
