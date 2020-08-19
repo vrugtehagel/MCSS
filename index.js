@@ -475,7 +475,7 @@ const MCSS = data => {
 			return result;
 		})();
 		return newValue = parts.reduce((acc, cur) => acc + cur.length, 0) > 80
-			? parts.reduce((acc, cur) => acc + '\n\t\t' + cur)
+			? parts.reduce((acc, cur) => acc + '\n' + indent + indent + cur)
 			: parts.reduce((acc, cur) => acc + ' ' + cur);
 	};
 	const setBaseTransitions = chunks => {
@@ -675,12 +675,12 @@ const MCSS = data => {
 				let { property, value } = chunk;
 				if(value.includes('\n')){
 					oneLiner = false;
-					value = value.replace(/\n/g, '\n' + indentation + '\t\t');
+					value = value.replace(/\n/g, '\n' + indentation + indent + indent);
 				}
 				if(!firstValue) firstValue = property + ': ' + value + ';';
 				else {
 					oneLiner = false;
-					block += indentation + '\t' + property + ': ' + value + ';\n';
+					block += indentation + indent + property + ': ' + value + ';\n';
 				}
 				outputChunks.splice(index, 1);
 			});
@@ -690,7 +690,7 @@ const MCSS = data => {
 			}
 			else{
 				result += indentation + selector + ' {\n'
-					+ indentation + '\t' + firstValue + '\n'
+					+ indentation + indent + firstValue + '\n'
 					+ block
 					+ indentation
 					+ '}\n\n';
@@ -708,7 +708,7 @@ const MCSS = data => {
 				chunks.splice(index, 1);
 			});
 			result += indentation + outputAtRule + ' {\n'
-				+ output(outputAtRuleChunks, '', indentation + '\t')
+				+ output(outputAtRuleChunks, '', indentation + indent)
 				+ indentation + '}\n';
 			if(!indentation) result += '\n';
 		}
