@@ -235,6 +235,37 @@ const MCSS = data => {
 		});
 		return chunks;
 	};
+	const chopValue = value => {
+		value = value.trim();
+		let result = [];
+		let current = '';
+		let inString = false;
+		let escaped = false;
+		let depth = 0;
+		let index = 0;
+		for(const c of value){
+			if(/\s/.test(c) && !current) continue;
+			else if(inString){
+				if(escaped) escaped = false;
+				else{
+					if(c == '\\') escaped = true;
+					if(inString == c) inString = false;
+				}
+			}
+			else if(c == '\'' || c == '"') inString = c;
+			else if(c == '(') depth++;
+			else if(c == ')') depth--;
+			else if(depth > 0);
+			else if(/\s/.test(c)){
+				result.push(current);
+				current = '';
+				continue;
+			}
+			current += c;
+		}
+		if(current) result.push(current);
+		return result;
+	};
 	const getAtRules = value => {
 		let inString = false;
 		let escaped = false;
@@ -347,7 +378,7 @@ const MCSS = data => {
 		const parts = chunk.value.split('|').map(part => part.trim());
 		const list = [];
 		if(/^[\w-]+$/.test(parts[0])) list.push({property: 'display', value: parts.shift()});
-		const [width, height] = parts.shift().split(/\s+/);
+		const [width, height] = chopValue(parts.shift());
 		if(width != '.') list.push({property: 'width', value: width});
 		if(height != '.') list.push({property: 'height', value: height});
 		const partProperties = ['padding', 'margin', 'box-sizing'];
@@ -411,7 +442,7 @@ const MCSS = data => {
 		const { property } = chunk;
 		if(!['margin', 'padding'].includes(property)) return;
 		const list = [];
-		const parts = chunk.value.split(/\s+/);
+		const parts = chopValue(chunk.value);
 		if(parts.every(part => part != '.')) return;
 		const add = values => {
 			values.forEach((value, index) => {
