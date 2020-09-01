@@ -126,9 +126,9 @@ const MCSS = data => {
 		let inString = false;
 		let parentheses = 0;
 		let escaped = false;
-		let index = semicolon.index - 1;
-		while(index >= 0){
-			const c = data[index];
+		let index = 0;
+		let found = -1;
+		for(const c of data){
 			if(inString){
 				if(escaped) escaped = false;
 				else{
@@ -139,11 +139,12 @@ const MCSS = data => {
 			else if(c == '\'' || c == '"') inString = c;
 			else if(c == ')') parentheses++;
 			else if(c == '(') parentheses--;
-			else if(parentheses) 0;
-			else if(c == ':') break;
-			index--;
+			else if(parentheses);
+			else if(c == ':') found = index;
+			index++;
+			if(index == semicolon.index) break;
 		}
-		return { text: ':', index };
+		return { text: ':', index: found };
 	};
 	const findMatchingProperty = colon => {
 		const index = data.slice(0, colon.index).search(/[\w-]+\s*$/);
@@ -190,6 +191,7 @@ const MCSS = data => {
 			const property = findMatchingProperty(colon);
 			const value = findMatchingValue(colon, semicolon);
 			const depth = findPropertyDepth(property);
+			break;
 			if(/^\s*$/.test(data.slice(0, property.index))){
 				// declaration
 				buildingSelector = false;
@@ -614,7 +616,6 @@ const MCSS = data => {
 			if(selectors.includes(chunk.selector)) return;
 			selectors.push(chunk.selector);
 		});
-		console.log(selectors);
 		selectors.forEach(selector => {
 			const relevantChunks = chunks.filter(chunk => chunk.selector == selector);
 			const contentExists = relevantChunks.some(chunk => chunk.property == 'content');
