@@ -614,9 +614,10 @@ const MCSS = data => {
 			if(selectors.includes(chunk.selector)) return;
 			selectors.push(chunk.selector);
 		});
+		console.log(selectors);
 		selectors.forEach(selector => {
 			const relevantChunks = chunks.filter(chunk => chunk.selector == selector);
-			const contentExists = chunks.some(chunk => chunk.property == 'content');
+			const contentExists = relevantChunks.some(chunk => chunk.property == 'content');
 			if(contentExists) return;
 			const firstChunk = relevantChunks[0];
 			const index = chunks.indexOf(firstChunk);
