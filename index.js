@@ -406,7 +406,7 @@ const MCSS = data => {
 
 		const transform = {};
 		const readPart = (part, dir, [top, center, bottom]) => {
-			part = part.split(/\s+/);
+			part = chopValue(part);
 			if(part.length == 1) part.push(part[0], '0');
 			else if(part.length == 2){
 				if([top, center, bottom].includes(part[1])) part.push('0');
@@ -770,60 +770,3 @@ const MCSS = data => {
 		return false;
 	}
 };
-console.log(
-MCSS(`font: 16px / 24px monospace;
-background-color: black;
-color: white;
-
-body
-	model: 100vw 100vh | . | 0;
-
-nav
-	model: 100% 100%;
-
-
-#difficulty
-	model: 90% . | 0 | 0;
-	max-width: 300px;
-	place: top | left;
-	list-style: none;
-	li
-		position: relative;
-		z-index: 2;
-		model: . . | 12px | 8px;
-		border: 3px solid white;
-		cursor: pointer;
-		background-color: black;
-		if(:hover:not(:active))
-			background-color: white;
-			color: black;
-	::before
-		content: attr(data-value) "\\00a0";
-		model: block | 100% . | 6px 48px | . | border-box;
-		z-index: 3;
-		opacity: 0;
-		pointer-events: none;
-		border: 3px solid white;
-		background-color: black;
-	if([data-value=""])
-		place: center | center;
-		transition: top .5s, left .5s 1s;
-	if(:not([data-value=""]))
-		height: 42px;
-		overflow: hidden;
-		animation: moveToTopLeft 1s 1s both;
-		@keyframes moveToTopLeft
-			from top: 50%; left: 50%; transform: translate(-50%, -50%);
-			to top: 0; left: 0; transform: none;
-		li
-			model: . . | 6px 48px | 0;
-			animation: merge 1s;
-			@keyframes merge
-				from margin: 8px; padding: 12px;
-				to margin: 0 0 -42px 0; padding: 6px 48px;
-	if([data-value="Beginner"])
-		li:nth-child(1) z-index: 3;
-	if([data-value="Intermediate"])
-		li:nth-child(2) z-index: 3;
-	if([data-value="Advanced"])
-		li:nth-child(3) z-index: 3;`))
