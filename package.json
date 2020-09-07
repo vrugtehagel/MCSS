@@ -1,6 +1,6 @@
 {
   "name": "@vrugtehagel/mcss",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Creating The ultimate preprocessor for clean and semantic output CSS",
   "main": "index.js",
   "scripts": {
