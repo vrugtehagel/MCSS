@@ -453,6 +453,7 @@ const MCSS = data => {
 		})));
 	};
 	const spreadQuadruples = (chunk, index, chunks) => {
+		const {property} = chunk;
 		if(!['margin', 'padding'].includes(chunk.property)) return;
 		const list = [];
 		const parts = chopValue(chunk.value);
