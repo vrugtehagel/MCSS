@@ -171,6 +171,45 @@ button {
   transform: translate(-100%, -50%);
 }
 ```
+Lastly, very often you will want to simply set `place: top | left;` or something similar (only setting the `achorParent`): therefore, you can omit the `|` as to make your life a little easier. Thus, we might write
+```
+button
+  place: top left;
+```
+to get
+```
+button {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+```
+### The `palette` property
+The pallete property is a shorthand for `color` and `background-color`. The syntax is
+```
+palette: [color] on [background-color];
+palette: [color] | [background-color];
+palette: [color] [background-color];
+```
+So for example, we could do
+```
+button
+  palette: white on rgb(20, 20, 40);
+  if(:hover)
+    palette: black white;
+```
+which will output
+```
+button {
+  color: white;
+  background-color: rgb(20, 20, 40);
+}
+
+button:hover {
+  color: black;
+  background-color: white;
+}
+```
 ### Setting declarations for `:root`
 In MCSS, you can write declarations on the top-most level, and MCSS will interpret them as being for the `:root` element. Useful for setting global CSS variables, as well as things like `font-size`.
 ```
@@ -387,33 +426,25 @@ span.asterisk { font-weight: bolder; }
 span.asterisk::before { content: "*"; }
 span.asterisk::after { content: "*"; }
 ```
-Of course, we all know, pseudoelements are rarely used to prepend or append text, but often they are elements with a purely visual purpose. MCSS understands that when you define a `::before` or `::after` element, you want it to have a `content` property. So, if you omit the `content` property, MCSS will see it and set `content: "";` automatically. So, one could write
+
+### Variables
+MCSS doesn't have its own variables for the sake of keeping the CSS itself dynamic and easy to use. However, it slightly improves on CSS variables by eliminating the need for `var()`. You can now simply write the variable itself. For example:
 ```
-button
-  model: block | 400px . | 12px;
-  position: relative;
-  ::after
-    model: block | 100% 100%;
-    place: top | left;
-    background-color: khaki;
+--main-color: #FF9700;
+--text-color: black;
+
+body
+  palette: --text-color on --main-color;
 ```
-yielding
+outputs
 ```
-button {
-  display: block;
-  width: 400px;
-  padding: 12px;
-  position: relative;
+:root {
+  --main-color: #FF9700;
+  --text-color: black;
 }
 
-button::after {
-  content: "";
-  display: block;
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-  background-color: khaki;
+body {
+  color: var(--text-color);
+  background-color: var(--main-color);
 }
 ```

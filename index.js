@@ -66,16 +66,9 @@ const MCSS = data => {
 		let escaped = false;
 		let prev = '';
 		let result = '';
+		let depth = 0;
 		for(const c of data){
-			if(inString){
-				if(escaped) escaped = false;
-				else{
-					if(c == '\\') escaped = true;
-					if(inString == c) inString = false;
-				}
-			}
-			else if(c == '\'' || c == '"') inString = c;
-			else if(inComment){
+			if(inComment){
 				if(traditionalComment){
 					if(prev == '*' && c == '/') inComment = false;
 					prev = c;
@@ -87,9 +80,26 @@ const MCSS = data => {
 					else continue;
 				}
 			}
-			else if(prev == '/' && (c == '/' || c == '*')){
+			else if(inString){
+				if(escaped) escaped = false;
+				else{
+					if(c == '\\') escaped = true;
+					if(inString == c) inString = false;
+				}
+			}
+			else if(c == '\'' || c == '"') inString = c;
+			else if(c == '(') depth++;
+			else if(c == ')') depth--;
+			else if(prev == '/' && c == '*'){
 				inComment = true;
-				traditionalComment = (c == '*');
+				traditionalComment = true;
+				result = result.slice(0, -1);
+				prev = c;
+				continue;
+			}
+			else if(prev == '/' && c == '/' && depth == 0){
+				inComment = true;
+				traditionalComment = false;
 				result = result.slice(0, -1);
 				prev = c;
 				continue;
@@ -124,7 +134,7 @@ const MCSS = data => {
 	};
 	const findMatchingColon = semicolon => {
 		let inString = false;
-		let parentheses = 0;
+		let depth = 0;
 		let escaped = false;
 		let index = 0;
 		let found = -1;
@@ -137,9 +147,9 @@ const MCSS = data => {
 				}
 			}
 			else if(c == '\'' || c == '"') inString = c;
-			else if(c == ')') parentheses++;
-			else if(c == '(') parentheses--;
-			else if(parentheses);
+			else if(c == ')') depth++;
+			else if(c == '(') depth--;
+			else if(depth);
 			else if(c == ':') found = index;
 			index++;
 			if(index == semicolon.index) break;
@@ -378,8 +388,9 @@ const MCSS = data => {
 		if(chunk.property != 'model') return;
 		const parts = chunk.value.split('|').map(part => part.trim());
 		const list = [];
-		if(/^[\w-]+$/.test(parts[0])) list.push({property: 'display', value: parts.shift()});
-		const [width, height] = chopValue(parts.shift());
+		if(/^[a-zA-Z_\-][\w-]*$/.test(parts[0])) list.push({property: 'display', value: parts.shift()});
+		let [width, height] = chopValue(parts.shift());
+		if(!height) height = width;
 		if(width != '.') list.push({property: 'width', value: width});
 		if(height != '.') list.push({property: 'height', value: height});
 		const partProperties = ['padding', 'margin', 'box-sizing'];
@@ -396,7 +407,9 @@ const MCSS = data => {
 	const spreadPlace = (chunk, index, chunks) => {
 		const { property } = chunk;
 		if(property.slice(0, 5) != 'place') return;
-		const parts = chunk.value.split('|').map(part => part.trim());
+		const parts = property == 'place' && !chunk.value.includes('|')
+			? chopValue(chunk.value)
+			: chunk.value.split('|').map(part => part.trim());
 		const list = [];
 
 		const maxPartsLength = property == 'place' ? 3 : 2;
@@ -440,8 +453,7 @@ const MCSS = data => {
 		})));
 	};
 	const spreadQuadruples = (chunk, index, chunks) => {
-		const { property } = chunk;
-		if(!['margin', 'padding'].includes(property)) return;
+		if(!['margin', 'padding'].includes(chunk.property)) return;
 		const list = [];
 		const parts = chopValue(chunk.value);
 		if(parts.every(part => part != '.')) return;
@@ -457,6 +469,22 @@ const MCSS = data => {
 		if(parts.length == 2) add([0, 1, 0, 1]);
 		if(parts.length == 3) add([0, 1, 2, 1]);
 		if(parts.length == 4) add([0, 1, 2, 3]);
+		chunks.splice(index, 1, ...list.map(item => ({
+			...chunk,
+			tree: [...chunk.tree],
+			atRules: [...chunk.atRules],
+			...item
+		})));
+	};
+	const spreadPalette = (chunk, index, chunks) => {
+		if(chunk.property != 'palette') return;
+		let parts = chunk.value.split(/\||\bon\b/).map(part => part.trim());
+		if(parts.length == 1) parts = chopValue(chunk.value);
+		if(parts.length == 1) throw 'Error: palette requires two arguments';
+		const list = [
+			{property: 'color', value: parts[0]},
+			{property: 'background-color', value: parts[1]}
+		];
 		chunks.splice(index, 1, ...list.map(item => ({
 			...chunk,
 			tree: [...chunk.tree],
@@ -630,6 +658,45 @@ const MCSS = data => {
 			});
 		});
 	};
+	const setVariables = (chunk, index, chunks) => {
+		if(!/--\w/.test(chunk.value)) return;
+		if(!/"|'|url\(/.test(chunk.value)) chunk.value.replace(/--\w[\w-]*/, m => `var(${m})`);
+		value = chunk.value;
+		let result = '';
+		let current = '';
+		let lastThree = '   ';
+		let inString = false;
+		let escaped = false;
+		let depth = 0;
+		for(const c of value){
+			if(current){
+				if(/[\w-]/.test(c)) current += c;
+				else {
+					result = result.slice(0, -current.length) + 'var(' + current + ')';
+					current = '';
+				}
+			}
+			else if(inString){
+				if(escaped) escaped = false;
+				else{
+					if(c == '\\') escaped = true;
+					if(inString == c) inString = false;
+				}
+			}
+			else if(c == '\'' || c == '"') inString = c;
+			else if(depth > 0){
+				if(c == '(') depth++;
+				else if(c == ')') depth--;				
+			}
+			else if(lastThree == 'url' && c == '(') depth++;
+			else if(lastThree == 'var' && c == '(') depth++;
+			else if(/--\w/.test(lastThree)) current = lastThree + c;
+			result += c;
+			lastThree = lastThree.slice(1) + c;
+		}
+		if(current) result = result.slice(0, -current.length) + 'var(' + current + ')';
+		chunk.value = result;
+	};
 	const outputKeyFrames = chunks => {
 		let result = '';
 		const keyframeChunks = [];
@@ -707,7 +774,9 @@ const MCSS = data => {
 				let { property, value } = chunk;
 				if(value.includes('\n')){
 					oneLiner = false;
-					value = value.replace(/\n/g, '\n' + indentation + indent + indent);
+					if(!/['"]/.test(value)){
+						value = value.replace(new RegExp('\n(' + indent + ')+', 'g'), '\n' + indentation + indent + indent);
+					}
 				}
 				if(!firstValue) firstValue = property + ': ' + value + ';';
 				else {
@@ -755,11 +824,13 @@ const MCSS = data => {
 		chunks.fixedForEach(spreadModel);
 		chunks.fixedForEach(spreadPlace);
 		chunks.fixedForEach(spreadQuadruples);
+		chunks.fixedForEach(spreadPalette);
+		chunks.fixedForEach(setVariables);
 		setBaseTransitions(chunks);
 		setIfTransitions(chunks);
 		setBaseTransforms(chunks);
 		setIfTransforms(chunks);
-		addMissingContents(chunks);
+		//addMissingContents(chunks);
 		fixEmptySelector(chunks);
 		const keyframes = outputKeyFrames(chunks);
 		const outputCSS = output(chunks);
