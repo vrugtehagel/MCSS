@@ -1,6 +1,27 @@
 # MCSS
 The ultimate preprocessor for semantic and clean output CSS.
 
+## Table of contents
+- [What is MCSS and why?](#what-is-mcss-and-why)
+- [Installing MCSS](#installing-mcss)
+- [Feature list](#feature-list)
+  * [Syntax](#syntax)
+  * [Nesting](#nesting)
+  * [`if` statements](#if-statements)
+  * [Shortening `margin` and `padding` forever](#shortening-margin-and-padding)
+  * [The `model` property](#the-model-property)
+  * [The `place` property](#the-place-property)
+  * [The `palette` property](#the-palette-property)
+  * [Setting declarations for `:root`](#setting-declarations-for-root)
+  * [Easy at-rules](#easy-at-rules)
+  * [Easy transitions](#easy-transitions)
+  * [The `add-transition` property](#the-add-transition-property)
+  * [The `add-transform` property](#the-add-transform-property)
+  * [Animations using `@keyframes`](#animations-using-keyframes)
+  * [Pseudoelements](#pseudoelements)
+  * [Variables](#variables)
+
+<a name="what-is-mcss-and-why"/>
 ## What is MCSS and why?
 Let's face it, CSS is a horrible language. It is almost impossible to write nice, readable CSS because of the way CSS is structured. Selector, declarations, selector, declarations, at-rule, selector, declarations.
 
@@ -12,6 +33,7 @@ At-rules. For any responsive design, we will use `@media` rules - specifically `
 
 MCSS tries to solve a lot of these things. It tries to make it possible to write CSS in a less vertically oriented format, while still outputting high-quality, clean CSS like a real human wrote it.
 
+<a name="installing-mcss"/>
 ## Installing MCSS
 You can install MCSS using `npm` - simply run
 ```
@@ -23,11 +45,15 @@ mcss filename.mcss
 ```
 and it will output your gorgeous CSS to `filename.css`. Enjoy!
 
+<a name="feature-list"/>
 ## Feature list
 Enough time wasted selling MCSS. Let's get to the good stuff!
+
+<a name="syntax"/>
 ### Syntax
 The first thing you should know, is that MCSS doesn't use `{` and `}`. CSS never really needed them, and they only contribute to the lengthy nature CSS has, so MCSS just got rid of them. For the rest, MCSS is almost identical to CSS in nature.
 
+<a name="nesting"/>
 ### Nesting
 Of course, no good preprocessor without this
 
@@ -55,6 +81,7 @@ p
 ```
 still has the same output as the previous example.
 
+<a name="if-statements"/>
 ### `if` statements
 SASS has the `&` syntax for psuedoclasses and the like. MCSS uses a different syntax, more accurately representing what it does:
 ```
@@ -70,6 +97,7 @@ a:visited { color: purple; }
 ```
 inside the `if()`, you're only allowed to filter the element with classes, an ID, attribute selector, or a pseudoclass. This syntax has some more benefits regarding transformations and transitions - more about those later.
 
+<a name="shortening-margin-and-padding"/>
 ### Shortening `margin` and `padding` forever
 Sometimes, you want to set the `padding-left` and `padding-right` properties without touching the `padding-top` and `padding-bottom`. With MCSS, you can use a period `.` to tell MCSS that you don't actually want to set this side of `padding` or `margin`.
 ```
@@ -88,6 +116,7 @@ div {
 }
 ```
 
+<a name="the-model-property"/>
 ### The `model` property
 MCSS introduces a new property: `model`. It bundles all the properties related to the box model. The syntax is as follows:
 ```
@@ -118,6 +147,7 @@ article {
 }
 ```
 
+<a name="the-place-property"/>
 ### The `place` property
 Similar to the `model`, property, `place` bundles some related CSS properties. However, the `place` property is not as straight-forward as the `model` property. The syntax is
 ```
@@ -184,6 +214,8 @@ button {
   left: 0;
 }
 ```
+
+<a name="the-palette-property"/>
 ### The `palette` property
 The pallete property is a shorthand for `color` and `background-color`. The syntax is
 ```
@@ -210,6 +242,8 @@ button:hover {
   background-color: white;
 }
 ```
+
+<a name="setting-declarations-for-root"/>
 ### Setting declarations for `:root`
 In MCSS, you can write declarations on the top-most level, and MCSS will interpret them as being for the `:root` element. Useful for setting global CSS variables, as well as things like `font-size`.
 ```
@@ -224,6 +258,7 @@ outputs
 }
 ```
 
+<a name="easy-at-rules"/>
 ### Easy at-rules
 You can set an at-rule inside a declaration by appending it to the value. For example:
 ```
@@ -272,6 +307,8 @@ outputs
   :root { font-size: 18px; }
 }
 ```
+
+<a name="easy-transitions"/>
 ### Easy transitions
 MCSS allows you to define a transition for elements inside the declaration itself. It uses the following syntax:
 ```
@@ -320,6 +357,7 @@ button:hover {
 ```
 This way, the transitions won't be reset unless you actually want them to. Want to use this functionality, but without setting the transition using the `@`-notation? No worries! MCSS has got your back.
 
+<a name="the-add-transition-property"/>
 ### The `add-transition` property
 You can use the `add-transition` property to, well, add transition properties if there already exists a `transition` property but you'd rather not touch it or you want to add to them in `if()` statements. That would work as follows:
 ```
@@ -340,6 +378,7 @@ button:hover {
   }
 ```
 
+<a name="the-add-transform-property"/>
 ### The `add-transform` property
 Like the `add-transition` property, MCSS allows you to add transforms to an already-existing transform. So, you can do this now:
 ```
@@ -357,6 +396,8 @@ svg {
 
 svg:hover { transform: rotate(360deg) scale(2); }
 ```
+
+<a name="animations-using-keyframes"/>
 ### Animations using `@keyframes`
 There is a slight improvement on how you use `@keyframes` in MCSS. You now got the `via` keyword, that linearly interpolates between the last absolute value set before it and the first one after it. That means, you can do
 ```
@@ -412,6 +453,7 @@ will become
 }
 ```
 
+<a name="pseudoelements"/>
 ### Pseudoelements
 The syntax in CSS, but in SASS even more, always has been a bit odd when it comes to psuedoelements. For example, the `div::after` element would be a child of the `div`, so it would make sense for it to have that structure when nesting properties. Thus, in MCSS, you can do:
 ```
@@ -427,6 +469,7 @@ span.asterisk::before { content: "*"; }
 span.asterisk::after { content: "*"; }
 ```
 
+<a name="variables"/>
 ### Variables
 MCSS doesn't have its own variables for the sake of keeping the CSS itself dynamic and easy to use. However, it slightly improves on CSS variables by eliminating the need for `var()`. You can now simply write the variable itself. For example:
 ```
