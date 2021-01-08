@@ -375,7 +375,7 @@ button:hover {
     color 1s 1s,
     border-width .2s,
     border-radius .2s;
-  }
+}
 ```
 
 <a name="the-add-transform-property"></a>
